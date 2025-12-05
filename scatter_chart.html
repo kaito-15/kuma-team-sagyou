@@ -80,14 +80,21 @@
 
         .controls {
             margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: #2a2a2a;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
         }
 
         button {
             background-color: #4d79ff;
             color: white;
             border: none;
-            padding: 10px 20px;
-            font-size: 16px;
+            padding: 8px 16px;
+            font-size: 14px;
             border-radius: 5px;
             cursor: pointer;
             transition: background-color 0.3s;
@@ -95,6 +102,20 @@
 
         button:hover {
             background-color: #335ccc;
+        }
+
+        input[type=range] {
+            width: 300px;
+            cursor: pointer;
+        }
+
+        select {
+            padding: 8px;
+            border-radius: 5px;
+            background: #444;
+            color: white;
+            border: none;
+            cursor: pointer;
         }
 
         .tooltip {
@@ -116,7 +137,16 @@
     <h1>東北地方 クマ被害相関図 (縦:捕獲数 横:ブナ結実 バブル:被害件数)</h1>
 
     <div class="controls">
-        <button id="replay-btn">Replay Animation</button>
+        <button id="play-pause-btn">Pause</button>
+        <input type="range" id="year-slider" min="0" max="100" value="0" step="1">
+        <span id="current-year-display" style="font-weight: bold; min-width: 50px;"></span>
+        <select id="speed-select">
+            <option value="2000">Slow (2s)</option>
+            <option value="1000" selected>Normal (1s)</option>
+            <option value="500">Fast (0.5s)</option>
+            <option value="200">Very Fast (0.2s)</option>
+        </select>
+        <button id="replay-btn">Replay</button>
     </div>
 
     <div id="chart-container"></div>
@@ -127,7 +157,9 @@
         const width = 960;
         const height = 600;
         const margin = { top: 40, right: 40, bottom: 60, left: 60 };
-        const duration = 1000; // Animation duration per year in ms
+        let duration = 1000; // Animation duration per year in ms
+        let isPlaying = false;
+        let animationInterval = null;
 
         const svg = d3.select("#chart-container")
             .append("svg")
@@ -160,6 +192,11 @@
 
             // Get all unique years and sort them
             const years = Array.from(new Set(formattedData.map(d => d.year))).sort((a, b) => a - b);
+
+            // Setup Slider
+            const slider = d3.select("#year-slider");
+            slider.attr("max", years.length - 1);
+            const yearDisplay = d3.select("#current-year-display");
 
             // Group data by year
             const dataByYear = d3.group(formattedData, d => d.year);
@@ -202,8 +239,9 @@
                     .attr("class", "axis-label")
                     .text("↑ 捕獲総数 (Captured Bears)"));
 
-            svg.append("g").attr("class", "axis").call(xAxis);
-            svg.append("g").attr("class", "axis").call(yAxis);
+            // Append axes but keep them hidden initially
+            const xAxisG = svg.append("g").attr("class", "axis").call(xAxis).attr("opacity", 0);
+            const yAxisG = svg.append("g").attr("class", "axis").call(yAxis).attr("opacity", 0);
 
             // Initial Elements
             const yearLabel = svg.append("text")
@@ -211,14 +249,21 @@
                 .attr("text-anchor", "end")
                 .attr("x", width - 40)
                 .attr("y", height - 40)
-                .text(years[0]);
+                .text(years[0])
+                .attr("opacity", 0); // Hidden initially
 
             let bubbles = svg.append("g").selectAll("circle");
             let labels = svg.append("g").selectAll("text");
             const tooltip = d3.select("#tooltip");
 
-            function update(year) {
+            let yearIndex = 0;
+
+            function update(year, transitionDuration = duration) {
                 const yearData = dataByYear.get(year) || [];
+
+                // Update Slider and Display
+                slider.property("value", years.indexOf(year));
+                yearDisplay.text(year);
 
                 // Update Year Label
                 yearLabel.text(year);
@@ -232,6 +277,8 @@
                             .attr("cx", d => x(d.fruiting))
                             .attr("cy", d => y(d.captured))
                             .attr("r", d => radius(d.incidents))
+                            .attr("opacity", 0) // Start hidden for sequential intro
+                            .call(enter => enter.transition().duration(transitionDuration).attr("opacity", 0.7))
                             .on("mouseover", function (event, d) {
                                 tooltip.style("opacity", 1)
                                     .html(`<strong>${d.name}</strong><br>結実: ${d.fruiting}<br>捕獲: ${d.captured}<br>被害: ${d.incidents}`)
@@ -241,11 +288,12 @@
                             .on("mouseout", function () {
                                 tooltip.style("opacity", 0);
                             }),
-                        update => update.transition().duration(duration).ease(d3.easeLinear)
+                        update => update.transition().duration(transitionDuration).ease(d3.easeLinear)
                             .attr("cx", d => x(d.fruiting))
                             .attr("cy", d => y(d.captured))
-                            .attr("r", d => radius(d.incidents)),
-                        exit => exit.remove()
+                            .attr("r", d => radius(d.incidents))
+                            .attr("opacity", 0.7),
+                        exit => exit.transition().duration(transitionDuration).attr("opacity", 0).remove()
                     );
 
                 // Labels
@@ -255,40 +303,103 @@
                             .attr("class", "bubble-label")
                             .text(d => d.name)
                             .attr("x", d => x(d.fruiting))
-                            .attr("y", d => y(d.captured)),
-                        update => update.transition().duration(duration).ease(d3.easeLinear)
+                            .attr("y", d => y(d.captured))
+                            .attr("opacity", 0)
+                            .call(enter => enter.transition().duration(transitionDuration).attr("opacity", 1)),
+                        update => update.transition().duration(transitionDuration).ease(d3.easeLinear)
                             .attr("x", d => x(d.fruiting))
-                            .attr("y", d => y(d.captured)),
-                        exit => exit.remove()
+                            .attr("y", d => y(d.captured))
+                            .attr("opacity", 1),
+                        exit => exit.transition().duration(transitionDuration).attr("opacity", 0).remove()
                     );
             }
 
-            // Animation Loop
-            let yearIndex = 0;
-            let interval = null;
+            function startAnimationLoop() {
+                if (animationInterval) clearInterval(animationInterval);
+                isPlaying = true;
+                d3.select("#play-pause-btn").text("Pause");
 
-            function play() {
-                if (interval) clearInterval(interval);
-                yearIndex = 0;
-
-                // Initial update
-                update(years[yearIndex]);
-
-                interval = setInterval(() => {
+                animationInterval = setInterval(() => {
                     yearIndex++;
                     if (yearIndex >= years.length) {
-                        clearInterval(interval);
+                        clearInterval(animationInterval);
+                        isPlaying = false;
+                        d3.select("#play-pause-btn").text("Replay");
                         return;
                     }
                     update(years[yearIndex]);
                 }, duration);
             }
 
-            // Start animation
-            play();
+            function pauseAnimation() {
+                if (animationInterval) clearInterval(animationInterval);
+                isPlaying = false;
+                d3.select("#play-pause-btn").text("Play");
+            }
 
-            // Replay button
-            d3.select("#replay-btn").on("click", play);
+            function togglePlay() {
+                if (isPlaying) {
+                    pauseAnimation();
+                } else {
+                    if (yearIndex >= years.length - 1) {
+                        yearIndex = 0; // Restart if at end
+                        update(years[yearIndex], 0); // Instant update to start
+                    }
+                    startAnimationLoop();
+                }
+            }
+
+            // Sequential Intro
+            function runIntroSequence() {
+                // Reset everything
+                yearIndex = 0;
+                xAxisG.attr("opacity", 0);
+                yAxisG.attr("opacity", 0);
+                yearLabel.attr("opacity", 0);
+                svg.selectAll(".bubble").remove();
+                svg.selectAll(".bubble-label").remove();
+
+                // 1. Show Y Axis
+                yAxisG.transition().duration(1000).attr("opacity", 1)
+                    .on("end", () => {
+                        // 2. Show X Axis
+                        xAxisG.transition().duration(1000).attr("opacity", 1)
+                            .on("end", () => {
+                                // 3. Show Bubbles (First Year)
+                                update(years[0], 1000);
+                                yearLabel.transition().duration(1000).attr("opacity", 0.5);
+
+                                // 4. Start Animation after a short delay
+                                setTimeout(() => {
+                                    startAnimationLoop();
+                                }, 1500);
+                            });
+                    });
+            }
+
+            // Event Listeners
+            d3.select("#play-pause-btn").on("click", togglePlay);
+
+            d3.select("#replay-btn").on("click", () => {
+                pauseAnimation();
+                runIntroSequence();
+            });
+
+            d3.select("#year-slider").on("input", function () {
+                pauseAnimation();
+                yearIndex = +this.value;
+                update(years[yearIndex], 0); // Instant update
+            });
+
+            d3.select("#speed-select").on("change", function () {
+                duration = +this.value;
+                if (isPlaying) {
+                    startAnimationLoop(); // Restart with new speed
+                }
+            });
+
+            // Start the sequence on load
+            runIntroSequence();
 
         }).catch(err => {
             console.error("Error loading CSV:", err);
