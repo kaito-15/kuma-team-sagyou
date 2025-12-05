@@ -78,6 +78,10 @@
             font-weight: bold;
         }
 
+        .controls {
+            margin-bottom: 20px;
+        }
+
         button {
             background-color: #4d79ff;
             color: white;
@@ -104,32 +108,6 @@
             opacity: 0;
             transition: opacity 0.2s;
         }
-
-        .controls {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            background: #2a2a2a;
-            padding: 15px 25px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        label {
-            font-size: 14px;
-            color: #ccc;
-        }
-
-        input[type=range] {
-            accent-color: #4d79ff;
-            cursor: pointer;
-        }
     </style>
 </head>
 
@@ -138,17 +116,7 @@
     <h1>東北地方 クマ被害相関図 (縦:捕獲数 横:ブナ結実 バブル:被害件数)</h1>
 
     <div class="controls">
-        <button id="play-btn">Pause</button>
-        <div class="control-group">
-            <label for="year-slider">Year</label>
-            <input type="range" id="year-slider" min="0" max="0" step="1" value="0">
-            <span id="year-display">---</span>
-        </div>
-        <div class="control-group">
-            <label for="speed-slider">Speed</label>
-            <input type="range" id="speed-slider" min="100" max="2000" step="100" value="1000">
-            <span id="speed-display">1.0s</span>
-        </div>
+        <button id="replay-btn">Replay Animation</button>
     </div>
 
     <div id="chart-container"></div>
@@ -159,13 +127,7 @@
         const width = 960;
         const height = 600;
         const margin = { top: 40, right: 40, bottom: 60, left: 60 };
-
-        // State
-        let duration = 1000; // Animation duration per year in ms
-        let isPlaying = true;
-        let yearIndex = 0;
-        let interval = null;
-        let years = [];
+        const duration = 1000; // Animation duration per year in ms
 
         const svg = d3.select("#chart-container")
             .append("svg")
@@ -197,7 +159,7 @@
             });
 
             // Get all unique years and sort them
-            years = Array.from(new Set(formattedData.map(d => d.year))).sort((a, b) => a - b);
+            const years = Array.from(new Set(formattedData.map(d => d.year))).sort((a, b) => a - b);
 
             // Group data by year
             const dataByYear = d3.group(formattedData, d => d.year);
@@ -255,25 +217,11 @@
             let labels = svg.append("g").selectAll("text");
             const tooltip = d3.select("#tooltip");
 
-            // Controls Elements
-            const playBtn = document.getElementById("play-btn");
-            const yearSlider = document.getElementById("year-slider");
-            const yearDisplay = document.getElementById("year-display");
-            const speedSlider = document.getElementById("speed-slider");
-            const speedDisplay = document.getElementById("speed-display");
-
-            // Initialize Slider
-            yearSlider.max = years.length - 1;
-            yearSlider.value = 0;
-            yearDisplay.innerText = years[0];
-
-            function update(year, transitionDuration) {
+            function update(year) {
                 const yearData = dataByYear.get(year) || [];
 
                 // Update Year Label
                 yearLabel.text(year);
-                yearDisplay.innerText = year;
-                yearSlider.value = years.indexOf(year);
 
                 // Bubbles
                 bubbles = bubbles.data(yearData, d => d.name)
@@ -293,7 +241,7 @@
                             .on("mouseout", function () {
                                 tooltip.style("opacity", 0);
                             }),
-                        update => update.transition().duration(transitionDuration).ease(d3.easeLinear)
+                        update => update.transition().duration(duration).ease(d3.easeLinear)
                             .attr("cx", d => x(d.fruiting))
                             .attr("cy", d => y(d.captured))
                             .attr("r", d => radius(d.incidents)),
@@ -308,65 +256,39 @@
                             .text(d => d.name)
                             .attr("x", d => x(d.fruiting))
                             .attr("y", d => y(d.captured)),
-                        update => update.transition().duration(transitionDuration).ease(d3.easeLinear)
+                        update => update.transition().duration(duration).ease(d3.easeLinear)
                             .attr("x", d => x(d.fruiting))
                             .attr("y", d => y(d.captured)),
                         exit => exit.remove()
                     );
             }
 
-            function step() {
-                yearIndex++;
-                if (yearIndex >= years.length) {
-                    yearIndex = 0; // Loop or stop? Let's loop.
-                }
-                update(years[yearIndex], duration);
-            }
+            // Animation Loop
+            let yearIndex = 0;
+            let interval = null;
 
-            function startPlayback() {
+            function play() {
                 if (interval) clearInterval(interval);
-                isPlaying = true;
-                playBtn.innerText = "Pause";
-                playBtn.style.backgroundColor = "#ff4d4d"; // Red for pause
+                yearIndex = 0;
 
-                interval = setInterval(step, duration);
+                // Initial update
+                update(years[yearIndex]);
+
+                interval = setInterval(() => {
+                    yearIndex++;
+                    if (yearIndex >= years.length) {
+                        clearInterval(interval);
+                        return;
+                    }
+                    update(years[yearIndex]);
+                }, duration);
             }
-
-            function stopPlayback() {
-                if (interval) clearInterval(interval);
-                isPlaying = false;
-                playBtn.innerText = "Play";
-                playBtn.style.backgroundColor = "#4d79ff"; // Blue for play
-            }
-
-            function togglePlayback() {
-                if (isPlaying) {
-                    stopPlayback();
-                } else {
-                    startPlayback();
-                }
-            }
-
-            // Event Listeners
-            playBtn.addEventListener("click", togglePlayback);
-
-            yearSlider.addEventListener("input", (e) => {
-                stopPlayback(); // Pause when dragging
-                yearIndex = +e.target.value;
-                update(years[yearIndex], 0); // Instant update
-            });
-
-            speedSlider.addEventListener("input", (e) => {
-                duration = +e.target.value;
-                speedDisplay.innerText = (duration / 1000).toFixed(1) + "s";
-                if (isPlaying) {
-                    startPlayback(); // Restart with new duration
-                }
-            });
 
             // Start animation
-            update(years[0], 0);
-            startPlayback();
+            play();
+
+            // Replay button
+            d3.select("#replay-btn").on("click", play);
 
         }).catch(err => {
             console.error("Error loading CSV:", err);
