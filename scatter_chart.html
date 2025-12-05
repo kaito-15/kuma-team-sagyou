@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tohoku Bear Scatter Chart</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            margin-top: 20px;
+            font-size: 2rem;
+            text-align: center;
+        }
+
+        #chart-container {
+            position: relative;
+            width: 960px;
+            height: 600px;
+            background: #2a2a2a;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            margin: 20px;
+        }
+
+        .bubble {
+            fill-opacity: 0.7;
+            stroke: #fff;
+            stroke-width: 1px;
+        }
+
+        .bubble-label {
+            font-weight: bold;
+            fill: #fff;
+            font-size: 12px;
+            text-anchor: middle;
+            pointer-events: none;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+        }
+
+        .year-label {
+            font-size: 100px;
+            font-weight: bold;
+            fill: #444;
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        .axis text {
+            fill: #aaa;
+            font-size: 12px;
+        }
+
+        .axis line,
+        .axis path {
+            stroke: #444;
+        }
+
+        .axis-label {
+            fill: #ddd;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        button {
+            background-color: #4d79ff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #335ccc;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            background: #2a2a2a;
+            padding: 15px 25px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        label {
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        input[type=range] {
+            accent-color: #4d79ff;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>東北地方 クマ被害相関図 (縦:捕獲数 横:ブナ結実 バブル:被害件数)</h1>
+
+    <div class="controls">
+        <button id="play-btn">Pause</button>
+        <div class="control-group">
+            <label for="year-slider">Year</label>
+            <input type="range" id="year-slider" min="0" max="0" step="1" value="0">
+            <span id="year-display">---</span>
+        </div>
+        <div class="control-group">
+            <label for="speed-slider">Speed</label>
+            <input type="range" id="speed-slider" min="100" max="2000" step="100" value="1000">
+            <span id="speed-display">1.0s</span>
+        </div>
+    </div>
+
+    <div id="chart-container"></div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // Configuration
+        const width = 960;
+        const height = 600;
+        const margin = { top: 40, right: 40, bottom: 60, left: 60 };
+
+        // State
+        let duration = 1000; // Animation duration per year in ms
+        let isPlaying = true;
+        let yearIndex = 0;
+        let interval = null;
+        let years = [];
+
+        const svg = d3.select("#chart-container")
+            .append("svg")
+            .attr("viewBox", [0, 0, width, height])
+            .attr("width", width)
+            .attr("height", height);
+
+        // Color scale
+        const color = d3.scaleOrdinal(d3.schemeTableau10);
+
+        // Tohoku Prefectures
+        const targetPrefectures = ["青森", "岩手", "宮城", "秋田", "山形", "福島"];
+
+        // Load Data
+        d3.csv("kuma_buna_all_long_intclean_fixed.csv").then(function (data) {
+
+            // Parse and Filter Data
+            const formattedData = [];
+            data.forEach(d => {
+                const year = +d["年度"];
+                const name = d["都道府県"];
+                const fruiting = d["結実"] === "" ? 0 : +d["結実"]; // X-axis
+                const captured = d["捕獲総数"] === "" ? 0 : +d["捕獲総数"]; // Y-axis
+                const incidents = d["件数"] === "" ? 0 : +d["件数"]; // Bubble Size
+
+                if (year && targetPrefectures.includes(name)) {
+                    formattedData.push({ year, name, fruiting, captured, incidents });
+                }
+            });
+
+            // Get all unique years and sort them
+            years = Array.from(new Set(formattedData.map(d => d.year))).sort((a, b) => a - b);
+
+            // Group data by year
+            const dataByYear = d3.group(formattedData, d => d.year);
+
+            // Scales
+            const x = d3.scaleLinear()
+                .domain([0, 5]) // Fruiting index is 0-5
+                .range([margin.left, width - margin.right]);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(formattedData, d => d.captured) * 1.1]) // Max captured + padding
+                .range([height - margin.bottom, margin.top]);
+
+            const radius = d3.scaleSqrt()
+                .domain([0, d3.max(formattedData, d => d.incidents)])
+                .range([4, 40]); // Min 4px, Max 40px
+
+            // Axes
+            const xAxis = g => g
+                .attr("transform", `translate(0,${height - margin.bottom})`)
+                .call(d3.axisBottom(x).ticks(5))
+                .call(g => g.select(".domain").remove())
+                .call(g => g.append("text")
+                    .attr("x", width - margin.right)
+                    .attr("y", -10)
+                    .attr("fill", "currentColor")
+                    .attr("text-anchor", "end")
+                    .attr("class", "axis-label")
+                    .text("ブナ結実 (Fruiting Index) →"));
+
+            const yAxis = g => g
+                .attr("transform", `translate(${margin.left},0)`)
+                .call(d3.axisLeft(y))
+                .call(g => g.select(".domain").remove())
+                .call(g => g.append("text")
+                    .attr("x", 10)
+                    .attr("y", margin.top)
+                    .attr("fill", "currentColor")
+                    .attr("text-anchor", "start")
+                    .attr("class", "axis-label")
+                    .text("↑ 捕獲総数 (Captured Bears)"));
+
+            svg.append("g").attr("class", "axis").call(xAxis);
+            svg.append("g").attr("class", "axis").call(yAxis);
+
+            // Initial Elements
+            const yearLabel = svg.append("text")
+                .attr("class", "year-label")
+                .attr("text-anchor", "end")
+                .attr("x", width - 40)
+                .attr("y", height - 40)
+                .text(years[0]);
+
+            let bubbles = svg.append("g").selectAll("circle");
+            let labels = svg.append("g").selectAll("text");
+            const tooltip = d3.select("#tooltip");
+
+            // Controls Elements
+            const playBtn = document.getElementById("play-btn");
+            const yearSlider = document.getElementById("year-slider");
+            const yearDisplay = document.getElementById("year-display");
+            const speedSlider = document.getElementById("speed-slider");
+            const speedDisplay = document.getElementById("speed-display");
+
+            // Initialize Slider
+            yearSlider.max = years.length - 1;
+            yearSlider.value = 0;
+            yearDisplay.innerText = years[0];
+
+            function update(year, transitionDuration) {
+                const yearData = dataByYear.get(year) || [];
+
+                // Update Year Label
+                yearLabel.text(year);
+                yearDisplay.innerText = year;
+                yearSlider.value = years.indexOf(year);
+
+                // Bubbles
+                bubbles = bubbles.data(yearData, d => d.name)
+                    .join(
+                        enter => enter.append("circle")
+                            .attr("class", "bubble")
+                            .attr("fill", d => color(d.name))
+                            .attr("cx", d => x(d.fruiting))
+                            .attr("cy", d => y(d.captured))
+                            .attr("r", d => radius(d.incidents))
+                            .on("mouseover", function (event, d) {
+                                tooltip.style("opacity", 1)
+                                    .html(`<strong>${d.name}</strong><br>結実: ${d.fruiting}<br>捕獲: ${d.captured}<br>被害: ${d.incidents}`)
+                                    .style("left", (event.pageX + 10) + "px")
+                                    .style("top", (event.pageY - 28) + "px");
+                            })
+                            .on("mouseout", function () {
+                                tooltip.style("opacity", 0);
+                            }),
+                        update => update.transition().duration(transitionDuration).ease(d3.easeLinear)
+                            .attr("cx", d => x(d.fruiting))
+                            .attr("cy", d => y(d.captured))
+                            .attr("r", d => radius(d.incidents)),
+                        exit => exit.remove()
+                    );
+
+                // Labels
+                labels = labels.data(yearData, d => d.name)
+                    .join(
+                        enter => enter.append("text")
+                            .attr("class", "bubble-label")
+                            .text(d => d.name)
+                            .attr("x", d => x(d.fruiting))
+                            .attr("y", d => y(d.captured)),
+                        update => update.transition().duration(transitionDuration).ease(d3.easeLinear)
+                            .attr("x", d => x(d.fruiting))
+                            .attr("y", d => y(d.captured)),
+                        exit => exit.remove()
+                    );
+            }
+
+            function step() {
+                yearIndex++;
+                if (yearIndex >= years.length) {
+                    yearIndex = 0; // Loop or stop? Let's loop.
+                }
+                update(years[yearIndex], duration);
+            }
+
+            function startPlayback() {
+                if (interval) clearInterval(interval);
+                isPlaying = true;
+                playBtn.innerText = "Pause";
+                playBtn.style.backgroundColor = "#ff4d4d"; // Red for pause
+
+                interval = setInterval(step, duration);
+            }
+
+            function stopPlayback() {
+                if (interval) clearInterval(interval);
+                isPlaying = false;
+                playBtn.innerText = "Play";
+                playBtn.style.backgroundColor = "#4d79ff"; // Blue for play
+            }
+
+            function togglePlayback() {
+                if (isPlaying) {
+                    stopPlayback();
+                } else {
+                    startPlayback();
+                }
+            }
+
+            // Event Listeners
+            playBtn.addEventListener("click", togglePlayback);
+
+            yearSlider.addEventListener("input", (e) => {
+                stopPlayback(); // Pause when dragging
+                yearIndex = +e.target.value;
+                update(years[yearIndex], 0); // Instant update
+            });
+
+            speedSlider.addEventListener("input", (e) => {
+                duration = +e.target.value;
+                speedDisplay.innerText = (duration / 1000).toFixed(1) + "s";
+                if (isPlaying) {
+                    startPlayback(); // Restart with new duration
+                }
+            });
+
+            // Start animation
+            update(years[0], 0);
+            startPlayback();
+
+        }).catch(err => {
+            console.error("Error loading CSV:", err);
+            d3.select("#chart-container").append("p").style("color", "red").text("Error loading data. Check console.");
+        });
+
+    </script>
+</body>
+
+</html>

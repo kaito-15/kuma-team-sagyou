@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブナ豊凶とクマ出没の分析</title>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- React Is (Required by Recharts) -->
+    <script crossorigin src="https://unpkg.com/react-is@18/umd/react-is.production.min.js"></script>
+
+    <!-- Prop Types -->
+    <script crossorigin src="https://unpkg.com/prop-types/prop-types.min.js"></script>
+
+    <!-- Recharts (Using a specific version known to work well with UMD) -->
+    <script crossorigin src="https://unpkg.com/recharts@2.5.0/umd/Recharts.js"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #0f172a;
+            /* Dark Slate */
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            color: #38bdf8;
+            /* Sky Blue */
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .card {
+            background-color: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #334155;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #f8fafc;
+        }
+
+        select {
+            background-color: #334155;
+            color: #fff;
+            border: 1px solid #475569;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        .chart-container {
+            width: 100%;
+            height: 400px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .stat-box {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #334155;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fbbf24;
+            /* Amber */
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const {
+            LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+            ComposedChart, ScatterChart, Scatter, ZAxis, Cell
+        } = Recharts;
+
+        // --- DATA ---
+        // Embedded CSV Data
+        const rawBunaCsv = `prefecture,year,flowering,fruiting
+青森県,1989,,3.4
+青森県,1990,3.4,2.2
+青森県,1991,0.8,0.6
+青森県,1992,4.5,4.1
+青森県,1993,2.1,1.0
+青森県,1994,1.7,1.3
+青森県,1995,4.0,4.2
+青森県,1996,0.7,0.6
+青森県,1997,2.2,1.8
+青森県,1998,1.7,1.4
+青森県,1999,1.1,0.7
+青森県,2000,4.6,4.7
+青森県,2001,0.3,0.2
+青森県,2002,1.2,1.0
+青森県,2003,2.5,2.4
+青森県,2004,1.1,0.8
+青森県,2005,3.8,3.4
+青森県,2006,0.5,0.2
+青森県,2007,1.7,0.8
+青森県,2008,2.4,1.6
+青森県,2009,2.0,1.4
+青森県,2010,1.6,0.7
+青森県,2011,2.6,1.3
+青森県,2012,1.3,0.4
+青森県,2013,3.6,3.4
+青森県,2014,1.7,0.7
+青森県,2015,2.8,2.0
+青森県,2016,1.4,0.5
+青森県,2017,2.0,1.2
+青森県,2018,2.0,1.2
+青森県,2019,1.6,0.6
+青森県,2020,3.2,2.3
+青森県,2021,2.0,1.0
+青森県,2022,3.8,2.9
+青森県,2023,0.5,0.1
+青森県,2024,3.7,3.8
+岩手県,1989,,
+岩手県,1990,4.3,3.3
+岩手県,1991,0.7,0.4
+岩手県,1992,2.3,2.2
+岩手県,1993,3.3,1.9
+岩手県,1994,0.9,0.6
+岩手県,1995,3.6,3.6
+岩手県,1996,0.9,1.2
+岩手県,1997,2.2,1.5
+岩手県,1998,1.4,1.0
+岩手県,1999,1.1,0.8
+岩手県,2000,4.6,4.4
+岩手県,2001,0.9,0.6
+岩手県,2002,1.3,1.2
+岩手県,2003,2.5,1.8
+岩手県,2004,1.0,0.4
+岩手県,2005,4.0,4.3
+岩手県,2006,0.4,0.2
+岩手県,2007,1.5,1.5
+岩手県,2008,2.1,1.5
+岩手県,2009,1.8,1.1
+岩手県,2010,1.1,0.7
+岩手県,2011,3.2,1.3
+岩手県,2012,0.7,0.0
+岩手県,2013,4.0,3.8
+岩手県,2014,0.3,0.2
+岩手県,2015,4.0,4.2
+岩手県,2016,0.3,0.0
+岩手県,2017,1.4,1.2
+岩手県,2018,2.8,1.8
+岩手県,2019,0.8,0.1
+岩手県,2020,1.8,1.3
+岩手県,2021,1.0,0.7
+岩手県,2022,3.3,2.7
+岩手県,2023,0.4,0.0
+岩手県,2024,3.2,2.7
+宮城県,1989,,1.9
+宮城県,1990,2.5,3.3
+宮城県,1991,1.2,0.5
+宮城県,1992,1.5,1.3
+宮城県,1993,2.3,1.7
+宮城県,1994,0.4,0.9
+宮城県,1995,4.3,4.0
+宮城県,1996,0.2,0.0
+宮城県,1997,0.5,0.7
+宮城県,1998,0.5,0.2
+宮城県,1999,0.2,0.0
+宮城県,2000,2.7,3.7
+宮城県,2001,0.8,0.7
+宮城県,2002,1.5,1.5
+宮城県,2003,0.7,0.2
+宮城県,2004,1.7,2.0
+宮城県,2005,4.7,4.3
+宮城県,2006,1.0,0.2
+宮城県,2007,1.5,1.3
+宮城県,2008,3.7,1.7
+宮城県,2009,3.3,2.0
+宮城県,2010,3.2,0.5
+宮城県,2011,3.7,1.5
+宮城県,2012,2.8,2.2
+宮城県,2013,3.7,5.0
+宮城県,2014,1.3,0.7
+宮城県,2015,3.3,3.4
+宮城県,2016,0.5,0.0
+宮城県,2017,0.7,0.7
+宮城県,2018,3.0,2.5
+宮城県,2019,0.3,0.3
+宮城県,2020,1.7,0.7
+宮城県,2021,4.0,1.7
+宮城県,2022,4.0,1.3
+宮城県,2023,0.8,0.0
+宮城県,2024,3.7,4.2
+秋田県,2004,1.1,0.5
+秋田県,2005,4.3,3.9
+秋田県,2006,0.5,0.2
+秋田県,2007,1.8,1.6
+秋田県,2008,1.3,1.0
+秋田県,2009,1.9,1.2
+秋田県,2010,0.8,0.3
+秋田県,2011,1.8,1.1
+秋田県,2012,0.9,0.7
+秋田県,2013,3.6,2.9
+秋田県,2014,0.8,0.4
+秋田県,2015,2.4,1.8
+秋田県,2016,0.5,0.1
+秋田県,2017,1.0,0.7
+秋田県,2018,2.2,1.7
+秋田県,2019,0.6,0.2
+秋田県,2020,2.8,2.0
+秋田県,2021,1.0,0.2
+秋田県,2022,3.7,2.8
+秋田県,2023,0.3,0.1
+秋田県,2024,2.6,2.6
+山形県,1989,,0.5
+山形県,2004,1.0,0.4
+山形県,2005,4.9,4.9
+山形県,2006,0.9,0.0
+山形県,2007,3.0,1.3
+山形県,2008,2.5,1.5
+山形県,2009,3.1,1.3
+山形県,2010,1.1,0.2
+山形県,2011,3.3,2.0
+山形県,2012,0.8,0.2
+山形県,2013,2.3,2.3
+山形県,2014,0.6,0.2
+山形県,2015,3.4,3.5
+山形県,2016,0.7,0.1
+山形県,2017,0.9,0.4
+山形県,2018,4.0,3.9
+山形県,2019,0.1,0.0
+山形県,2020,0.7,0.3
+山形県,2021,1.9,1.5
+山形県,2022,3.4,3.1
+山形県,2023,0.7,0.1
+山形県,2024,3.3,2.9`;
+
+        const rawBearCsv = `prefecture,year,count
+北海道,2008,3
+北海道,2009,2
+北海道,2010,3
+北海道,2011,2
+北海道,2012,2
+北海道,2013,4
+北海道,2014,5
+北海道,2015,0
+北海道,2016,1
+北海道,2017,4
+北海道,2018,3
+北海道,2019,3
+北海道,2020,2
+北海道,2021,9
+北海道,2022,3
+北海道,2023,6
+北海道,2024,3
+青森,2008,2
+青森,2009,4
+青森,2010,4
+青森,2011,5
+青森,2012,2
+青森,2013,2
+青森,2014,3
+青森,2015,2
+青森,2016,0
+青森,2017,8
+青森,2018,3
+青森,2019,5
+青森,2020,5
+青森,2021,1
+青森,2022,1
+青森,2023,10
+青森,2024,4
+岩手,2008,9
+岩手,2009,14
+岩手,2010,14
+岩手,2011,16
+岩手,2012,19
+岩手,2013,7
+岩手,2014,13
+岩手,2015,13
+岩手,2016,17
+岩手,2017,16
+岩手,2018,12
+岩手,2019,15
+岩手,2020,27
+岩手,2021,14
+岩手,2022,23
+岩手,2023,46
+岩手,2024,10
+宮城,2008,1
+宮城,2009,1
+宮城,2010,3
+宮城,2011,3
+宮城,2012,0
+宮城,2013,3
+宮城,2014,4
+宮城,2015,1
+宮城,2016,6
+宮城,2017,3
+宮城,2018,1
+宮城,2019,6
+宮城,2020,1
+宮城,2021,2
+宮城,2022,5
+宮城,2023,3
+宮城,2024,0
+秋田,2008,4
+秋田,2009,8
+秋田,2010,10
+秋田,2011,17
+秋田,2012,6
+秋田,2013,5
+秋田,2014,10
+秋田,2015,7
+秋田,2016,19
+秋田,2017,19
+秋田,2018,7
+秋田,2019,14
+秋田,2020,8
+秋田,2021,12
+秋田,2022,6
+秋田,2023,62
+秋田,2024,10
+山形,2008,1
+山形,2009,2
+山形,2010,10
+山形,2011,4
+山形,2012,5
+山形,2013,0
+山形,2014,2
+山形,2015,1
+山形,2016,2
+山形,2017,4
+山形,2018,1
+山形,2019,4
+山形,2020,5
+山形,2021,0
+山形,2022,2
+山形,2023,5
+山形,2024,4`;
+
+        // --- PARSING LOGIC ---
+        function parseCSV(csv) {
+            const lines = csv.trim().split('\n');
+            const headers = lines[0].split(',');
+            const result = [];
+            for (let i = 1; i < lines.length; i++) {
+                const row = lines[i].split(',');
+                const obj = {};
+                headers.forEach((h, index) => {
+                    let val = row[index];
+                    if (val === undefined || val === '') {
+                        val = null;
+                    } else if (!isNaN(val)) {
+                        val = parseFloat(val);
+                    }
+                    obj[h] = val;
+                });
+                result.push(obj);
+            }
+            return result;
+        }
+
+        const bunaData = parseCSV(rawBunaCsv);
+        const bearData = parseCSV(rawBearCsv);
+
+        // Normalize Prefecture Names (Remove '県' from bunaData)
+        bunaData.forEach(d => {
+            if (d.prefecture) {
+                d.prefecture = d.prefecture.replace('県', '');
+            }
+        });
+
+        // Merge Data
+        // We want an array of objects: { year, bearCount, bunaIndex } for a specific prefecture
+        function getMergedData(prefecture) {
+            const pBuna = bunaData.filter(d => d.prefecture === prefecture);
+            const pBear = bearData.filter(d => d.prefecture === prefecture);
+
+            // Get all unique years from both
+            const years = new Set([...pBuna.map(d => d.year), ...pBear.map(d => d.year)]);
+            const sortedYears = Array.from(years).sort((a, b) => a - b);
+
+            return sortedYears.map(year => {
+                const bData = pBuna.find(d => d.year === year);
+                const bearD = pBear.find(d => d.year === year);
+                return {
+                    year: year,
+                    bunaIndex: bData ? bData.fruiting : null,
+                    bearCount: bearD ? bearD.count : null
+                };
+            }).filter(d => d.year >= 2008); // Filter to start from 2008 where we have bear data
+        }
+
+        const availablePrefectures = ["青森", "岩手", "宮城", "秋田", "山形"];
+
+        // --- COMPONENTS ---
+
+        const App = () => {
+            const [selectedPref, setSelectedPref] = React.useState("秋田");
+            const data = React.useMemo(() => getMergedData(selectedPref), [selectedPref]);
+
+            // Calculate correlation stats (simple check)
+            const validData = data.filter(d => d.bunaIndex !== null && d.bearCount !== null);
+            const lowBunaHighBear = validData.filter(d => d.bunaIndex < 1.0 && d.bearCount > 5).length;
+
+            return (
+                <div className="container">
+                    <h1>ブナ豊凶とクマ出没の分析</h1>
+
+                    <div className="card">
+                        <div className="card-header">
+                            <div className="card-title">分析ダッシュボード</div>
+                            <select value={selectedPref} onChange={(e) => setSelectedPref(e.target.value)}>
+                                {availablePrefectures.map(p => (
+                                    <option key={p} value={p}>{p}県</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="grid">
+                            <div className="stat-box">
+                                <div className="stat-value">{validData.length}</div>
+                                <div className="stat-label">データがある年数</div>
+                            </div>
+                            <div className="stat-box">
+                                <div className="stat-value" style={{ color: '#ef4444' }}>{lowBunaHighBear}</div>
+                                <div className="stat-label">凶作で出没が多い年</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="card">
+                        <div className="card-title" style={{ marginBottom: '20px' }}>時系列比較</div>
+                        <div className="chart-container">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ComposedChart data={data}>
+                                    <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                                    <XAxis dataKey="year" stroke="#94a3b8" />
+                                    <YAxis yAxisId="left" stroke="#ef4444" label={{ value: 'クマ出没件数', angle: -90, position: 'insideLeft', fill: '#ef4444' }} />
+                                    <YAxis yAxisId="right" orientation="right" stroke="#fbbf24" label={{ value: 'ブナ結実指数', angle: 90, position: 'insideRight', fill: '#fbbf24' }} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
+                                        labelStyle={{ color: '#f8fafc' }}
+                                    />
+                                    <Legend />
+                                    <Bar yAxisId="left" dataKey="bearCount" name="クマ出没件数" fill="#ef4444" barSize={20} radius={[4, 4, 0, 0]} />
+                                    <Line yAxisId="right" type="monotone" dataKey="bunaIndex" name="ブナ結実指数" stroke="#fbbf24" strokeWidth={3} dot={{ r: 4 }} />
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div style={{ marginTop: '10px', fontSize: '0.9rem', color: '#94a3b8', textAlign: 'center' }}>
+                            * 棒グラフ: クマ出没件数（左軸）｜折れ線: ブナ結実（右軸）
+                        </div>
+                    </div>
+
+                    <div className="card">
+                        <div className="card-title" style={{ marginBottom: '20px' }}>相関散布図</div>
+                        <div className="chart-container">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                                    <CartesianGrid stroke="#334155" />
+                                    <XAxis type="number" dataKey="bunaIndex" name="ブナ指数" stroke="#fbbf24" label={{ value: 'ブナ指数（低いほど凶作）', position: 'bottom', fill: '#94a3b8', offset: 0 }} />
+                                    <YAxis type="number" dataKey="bearCount" name="クマ出没件数" stroke="#ef4444" label={{ value: 'クマ出没件数', angle: -90, position: 'insideLeft', fill: '#94a3b8' }} />
+                                    <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155' }} />
+                                    <Scatter name="年" data={validData} fill="#38bdf8">
+                                        {validData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.bunaIndex < 1.0 ? '#ef4444' : '#38bdf8'} />
+                                        ))}
+                                    </Scatter>
+                                </ScatterChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div style={{ marginTop: '10px', fontSize: '0.9rem', color: '#94a3b8', textAlign: 'center' }}>
+                            * 赤い点は凶作の年（指数 &lt; 1.0）を示します
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
