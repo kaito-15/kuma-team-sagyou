@@ -444,85 +444,292 @@
 
         const availablePrefectures = ["青森", "岩手", "宮城", "秋田", "山形"];
 
+        // Thresholds for "Danger" level (Bear Count)
+        const prefectureThresholds = {
+            "青森": 5,
+            "岩手": 15,
+            "宮城": 3,
+            "秋田": 10,
+            "山形": 5
+        };
+
         // --- COMPONENTS ---
+
+        const BalanceScale = ({ bearCount, threshold = 5 }) => {
+            const diff = (bearCount || 0) - threshold;
+            let angle = diff * 3;
+            // Clamp angle
+            if (angle > 25) angle = 25;
+            if (angle < -25) angle = -25;
+
+            // Colors
+            const beamColor = "#94a3b8"; // Slate
+
+            const isDanger = angle > 5;
+
+            return (
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                    <h3 style={{ color: '#f8fafc', marginBottom: '10px' }}>
+                        {isDanger ? "⚠️ 危険: クマ優勢" : "✅ 安全: 人里の平穏"}
+                    </h3>
+                    <div style={{ fontSize: '0.9rem', color: '#94a3b8', marginBottom: '20px' }}>
+                        クマ出没数: {bearCount || 0} (基準: {threshold})
+                    </div>
+
+                    <svg width="300" height="150" viewBox="0 0 300 150">
+                        {/* Base */}
+                        <path d="M 130 140 L 150 100 L 170 140 Z" fill="#475569" />
+                        <rect x="100" y="140" width="100" height="10" fill="#334155" rx="5" />
+
+                        {/* Rotating Group (Beam + Pans) */}
+                        <g transform={`rotate(${angle}, 150, 100)`} style={{ transition: 'transform 0.5s ease-out' }}>
+                            {/* Beam */}
+                            <rect x="50" y="95" width="200" height="10" fill={beamColor} rx="5" />
+
+                            {/* Left Pan (Human) */}
+                            <line x1="60" y1="100" x2="60" y2="130" stroke={beamColor} strokeWidth="2" />
+                            <g transform="translate(60, 130)">
+                                {/* Pan shape */}
+                                <path d="M -20 0 Q 0 15 20 0" fill="none" stroke={beamColor} strokeWidth="2" />
+                                {/* Human Icon */}
+                                <text x="-15" y="-5" fontSize="24">🏠</text>
+                            </g>
+
+                            {/* Right Pan (Bear) */}
+                            <line x1="240" y1="100" x2="240" y2="130" stroke={beamColor} strokeWidth="2" />
+                            <g transform="translate(240, 130)">
+                                {/* Pan shape */}
+                                <path d="M -20 0 Q 0 15 20 0" fill="none" stroke={beamColor} strokeWidth="2" />
+                                {/* Bear Icon */}
+                                <text x="-15" y="-5" fontSize="24">🐻</text>
+                            </g>
+                        </g>
+                    </svg>
+                </div>
+            );
+        };
+
+        // --- MAP COMPONENT ---
+        const TohokuMap = ({ selectedPref, onSelect }) => {
+            // Simplified SVG paths for Tohoku prefectures
+            const paths = {
+                "青森": "M 220 50 L 260 50 L 280 80 L 250 110 L 200 100 L 180 70 Z",
+                "岩手": "M 250 110 L 280 80 L 300 150 L 280 220 L 240 200 L 240 150 Z",
+                "秋田": "M 180 70 L 200 100 L 240 150 L 240 200 L 200 220 L 170 150 Z",
+                "宮城": "M 240 200 L 280 220 L 270 280 L 230 270 L 230 230 Z",
+                "山形": "M 170 150 L 200 220 L 230 230 L 230 270 L 190 290 L 160 220 Z",
+                "福島": "M 190 290 L 230 270 L 270 280 L 260 350 L 180 340 Z"
+            };
+
+            // Center coordinates for labels
+            const labels = {
+                "青森": { x: 230, y: 80 },
+                "岩手": { x: 270, y: 150 },
+                "秋田": { x: 200, y: 150 },
+                "宮城": { x: 260, y: 250 },
+                "山形": { x: 190, y: 240 },
+                "福島": { x: 220, y: 310 }
+            };
+
+            return (
+                <svg width="100%" height="300" viewBox="150 40 160 320" style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))' }}>
+                    {Object.entries(paths).map(([pref, path]) => {
+                        const isSelected = selectedPref === pref;
+                        return (
+                            <g key={pref} onClick={() => onSelect(pref)} style={{ cursor: 'pointer' }}>
+                                <path
+                                    d={path}
+                                    fill={isSelected ? "#ef4444" : "#334155"}
+                                    stroke="#1e293b"
+                                    strokeWidth="2"
+                                    style={{ transition: 'fill 0.3s ease' }}
+                                    onMouseEnter={(e) => e.target.style.fill = isSelected ? "#ef4444" : "#475569"}
+                                    onMouseLeave={(e) => e.target.style.fill = isSelected ? "#ef4444" : "#334155"}
+                                />
+                                <text
+                                    x={labels[pref].x}
+                                    y={labels[pref].y}
+                                    textAnchor="middle"
+                                    fill="#fff"
+                                    fontSize="12"
+                                    pointerEvents="none"
+                                    fontWeight={isSelected ? "bold" : "normal"}
+                                >
+                                    {pref}
+                                </text>
+                            </g>
+                        );
+                    })}
+                </svg>
+            );
+        };
 
         const App = () => {
             const [selectedPref, setSelectedPref] = React.useState("秋田");
+            const [hoveredData, setHoveredData] = React.useState(null);
+
             const data = React.useMemo(() => getMergedData(selectedPref), [selectedPref]);
+            const currentThreshold = prefectureThresholds[selectedPref] || 5;
 
             // Calculate correlation stats (simple check)
             const validData = data.filter(d => d.bunaIndex !== null && d.bearCount !== null);
-            const lowBunaHighBear = validData.filter(d => d.bunaIndex < 1.0 && d.bearCount > 5).length;
+            const lowBunaHighBear = validData.filter(d => d.bunaIndex < 1.0 && d.bearCount > currentThreshold).length;
+
+            // --- UNIFIED SCALES CALCULATION ---
+            // Calculate global max for Bear Count across ALL prefectures to unify Y-axis
+            const globalMaxBear = React.useMemo(() => {
+                let max = 0;
+                availablePrefectures.forEach(pref => {
+                    const prefData = getMergedData(pref);
+                    const prefMax = Math.max(...prefData.map(d => d.bearCount || 0));
+                    if (prefMax > max) max = prefMax;
+                });
+                return Math.ceil(max * 1.1); // Add 10% padding
+            }, []);
+
+            // Global max for Buna Index (usually around 5, but let's be safe)
+            const globalMaxBuna = 5.5;
+
+            // Determine what data to show in the balance scale
+            const activeData = hoveredData || (validData.length > 0 ? validData[validData.length - 1] : null);
+
+            const handleChartHover = (props) => {
+                if (props && props.activePayload && props.activePayload.length > 0) {
+                    setHoveredData(props.activePayload[0].payload);
+                }
+            };
+
+            const handleMouseLeave = () => {
+                setHoveredData(null);
+            };
 
             return (
                 <div className="container">
                     <h1>ブナ豊凶とクマ出没の分析</h1>
 
-                    <div className="card">
-                        <div className="card-header">
-                            <div className="card-title">分析ダッシュボード</div>
-                            <select value={selectedPref} onChange={(e) => setSelectedPref(e.target.value)}>
-                                {availablePrefectures.map(p => (
-                                    <option key={p} value={p}>{p}県</option>
-                                ))}
-                            </select>
-                        </div>
+                    <div className="grid">
+                        {/* Left Column: Dashboard & Map */}
+                        <div>
+                            <div className="card">
+                                <div className="card-header">
+                                    <div className="card-title">分析ダッシュボード</div>
+                                    <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
+                                        地図をクリックして県を選択
+                                    </div>
+                                </div>
 
-                        <div className="grid">
-                            <div className="stat-box">
-                                <div className="stat-value">{validData.length}</div>
-                                <div className="stat-label">データがある年数</div>
+                                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                                    <TohokuMap selectedPref={selectedPref} onSelect={setSelectedPref} />
+                                </div>
+
+                                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    <div className="stat-box">
+                                        <div className="stat-value">{validData.length}</div>
+                                        <div className="stat-label">データがある年数</div>
+                                    </div>
+                                    <div className="stat-box">
+                                        <div className="stat-value" style={{ color: '#ef4444' }}>{lowBunaHighBear}</div>
+                                        <div className="stat-label">凶作で出没が多い年</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+                                            (ブナ指数 &lt; 1.0 かつ 出没数 &gt; {currentThreshold})
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="stat-box">
-                                <div className="stat-value" style={{ color: '#ef4444' }}>{lowBunaHighBear}</div>
-                                <div className="stat-label">凶作で出没が多い年</div>
+
+                            {/* Balance Scale Card */}
+                            <div className="card" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '250px' }}>
+                                {activeData ? (
+                                    <div style={{ width: '100%' }}>
+                                        <div className="card-title" style={{ textAlign: 'center', marginBottom: '0' }}>
+                                            リスク天秤 ({activeData.year}年)
+                                        </div>
+                                        <BalanceScale bearCount={activeData.bearCount} threshold={currentThreshold} />
+                                    </div>
+                                ) : (
+                                    <div style={{ color: '#94a3b8' }}>データなし</div>
+                                )}
                             </div>
                         </div>
-                    </div>
 
-                    <div className="card">
-                        <div className="card-title" style={{ marginBottom: '20px' }}>時系列比較</div>
-                        <div className="chart-container">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <ComposedChart data={data}>
-                                    <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                                    <XAxis dataKey="year" stroke="#94a3b8" />
-                                    <YAxis yAxisId="left" stroke="#ef4444" label={{ value: 'クマ出没件数', angle: -90, position: 'insideLeft', fill: '#ef4444' }} />
-                                    <YAxis yAxisId="right" orientation="right" stroke="#fbbf24" label={{ value: 'ブナ結実指数', angle: 90, position: 'insideRight', fill: '#fbbf24' }} />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
-                                        labelStyle={{ color: '#f8fafc' }}
-                                    />
-                                    <Legend />
-                                    <Bar yAxisId="left" dataKey="bearCount" name="クマ出没件数" fill="#ef4444" barSize={20} radius={[4, 4, 0, 0]} />
-                                    <Line yAxisId="right" type="monotone" dataKey="bunaIndex" name="ブナ結実指数" stroke="#fbbf24" strokeWidth={3} dot={{ r: 4 }} />
-                                </ComposedChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div style={{ marginTop: '10px', fontSize: '0.9rem', color: '#94a3b8', textAlign: 'center' }}>
-                            * 棒グラフ: クマ出没件数（左軸）｜折れ線: ブナ結実（右軸）
-                        </div>
-                    </div>
+                        {/* Right Column: Charts */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div className="card">
+                                <div className="card-title" style={{ marginBottom: '20px' }}>時系列比較 ({selectedPref})</div>
+                                <div className="chart-container">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <ComposedChart
+                                            data={data}
+                                            onMouseMove={handleChartHover}
+                                            onMouseLeave={handleMouseLeave}
+                                        >
+                                            <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                                            <XAxis dataKey="year" stroke="#94a3b8" />
+                                            <YAxis
+                                                yAxisId="left"
+                                                stroke="#ef4444"
+                                                domain={[0, globalMaxBear]}
+                                                label={{ value: 'クマ出没件数', angle: -90, position: 'insideLeft', fill: '#ef4444' }}
+                                            />
+                                            <YAxis
+                                                yAxisId="right"
+                                                orientation="right"
+                                                stroke="#fbbf24"
+                                                domain={[0, globalMaxBuna]}
+                                                label={{ value: 'ブナ結実指数', angle: 90, position: 'insideRight', fill: '#fbbf24' }}
+                                            />
+                                            <Tooltip
+                                                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155' }}
+                                                labelStyle={{ color: '#f8fafc' }}
+                                            />
+                                            <Legend />
+                                            <Bar yAxisId="left" dataKey="bearCount" name="クマ出没件数" fill="#ef4444" barSize={20} radius={[4, 4, 0, 0]} />
+                                            <Line yAxisId="right" type="monotone" dataKey="bunaIndex" name="ブナ結実指数" stroke="#fbbf24" strokeWidth={3} dot={{ r: 4 }} />
+                                        </ComposedChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
 
-                    <div className="card">
-                        <div className="card-title" style={{ marginBottom: '20px' }}>相関散布図</div>
-                        <div className="chart-container">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                                    <CartesianGrid stroke="#334155" />
-                                    <XAxis type="number" dataKey="bunaIndex" name="ブナ指数" stroke="#fbbf24" label={{ value: 'ブナ指数（低いほど凶作）', position: 'bottom', fill: '#94a3b8', offset: 0 }} />
-                                    <YAxis type="number" dataKey="bearCount" name="クマ出没件数" stroke="#ef4444" label={{ value: 'クマ出没件数', angle: -90, position: 'insideLeft', fill: '#94a3b8' }} />
-                                    <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155' }} />
-                                    <Scatter name="年" data={validData} fill="#38bdf8">
-                                        {validData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.bunaIndex < 1.0 ? '#ef4444' : '#38bdf8'} />
-                                        ))}
-                                    </Scatter>
-                                </ScatterChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div style={{ marginTop: '10px', fontSize: '0.9rem', color: '#94a3b8', textAlign: 'center' }}>
-                            * 赤い点は凶作の年（指数 &lt; 1.0）を示します
+                            <div className="card">
+                                <div className="card-title" style={{ marginBottom: '20px' }}>相関散布図 ({selectedPref})</div>
+                                <div className="chart-container">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <ScatterChart
+                                            margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
+                                            onMouseMove={(state) => {
+                                                if (state && state.activePayload && state.activePayload.length > 0) {
+                                                    setHoveredData(state.activePayload[0].payload);
+                                                }
+                                            }}
+                                            onMouseLeave={handleMouseLeave}
+                                        >
+                                            <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                                            <XAxis
+                                                type="number"
+                                                dataKey="bunaIndex"
+                                                name="ブナ指数"
+                                                stroke="#fbbf24"
+                                                domain={[0, globalMaxBuna]}
+                                                label={{ value: 'ブナ指数（低いほど凶作）', position: 'bottom', fill: '#94a3b8', offset: 0 }}
+                                            />
+                                            <YAxis
+                                                type="number"
+                                                dataKey="bearCount"
+                                                name="クマ出没件数"
+                                                stroke="#ef4444"
+                                                domain={[0, globalMaxBear]}
+                                                label={{ value: 'クマ出没件数', angle: -90, position: 'insideLeft', fill: '#94a3b8' }}
+                                            />
+                                            <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155' }} />
+                                            <Scatter name="年" data={validData} fill="#38bdf8">
+                                                {validData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.bunaIndex < 1.0 ? '#ef4444' : '#38bdf8'} />
+                                                ))}
+                                            </Scatter>
+                                        </ScatterChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

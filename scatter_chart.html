@@ -25,15 +25,25 @@
             text-align: center;
         }
 
-        #chart-container {
+        .charts-wrapper {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            width: 95%;
+            max-width: 1800px;
+            margin: 20px;
+        }
+
+        .chart-box {
             position: relative;
-            width: 960px;
-            height: 600px;
+            width: 100%;
+            max-width: 800px;
+            height: 500px;
             background: #2a2a2a;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
             overflow: hidden;
-            margin: 20px;
         }
 
         .bubble {
@@ -52,12 +62,12 @@
         }
 
         .year-label {
-            font-size: 100px;
+            font-size: 80px;
             font-weight: bold;
             fill: #444;
             position: absolute;
-            bottom: 40px;
-            right: 40px;
+            bottom: 20px;
+            right: 20px;
             pointer-events: none;
             opacity: 0.5;
         }
@@ -102,6 +112,7 @@
 
         button:hover {
             background-color: #335ccc;
+            color: white;
         }
 
         input[type=range] {
@@ -128,13 +139,33 @@
             pointer-events: none;
             opacity: 0;
             transition: opacity 0.2s;
+            z-index: 10;
+        }
+
+        /* Line Chart Specifics */
+        .line-path {
+            fill: none;
+            stroke-width: 2px;
+            opacity: 0.6;
+        }
+
+        .line-path.highlighted {
+            opacity: 1;
+            stroke-width: 3px;
+        }
+
+        .cursor-line {
+            stroke: #fff;
+            stroke-width: 1px;
+            stroke-dasharray: 4 4;
+            opacity: 0.5;
         }
     </style>
 </head>
 
 <body>
 
-    <h1>東北地方 クマ被害相関図 (縦:捕獲数 横:ブナ結実 バブル:被害件数)</h1>
+    <h1>東北地方 クマ被害相関図 & 被害件数推移</h1>
 
     <div class="controls">
         <button id="play-pause-btn">Pause</button>
@@ -149,23 +180,34 @@
         <button id="replay-btn">Replay</button>
     </div>
 
-    <div id="chart-container"></div>
+    <div class="charts-wrapper">
+        <div id="scatter-container" class="chart-box"></div>
+        <div id="line-container" class="chart-box"></div>
+    </div>
     <div class="tooltip" id="tooltip"></div>
 
     <script>
         // Configuration
-        const width = 960;
-        const height = 600;
+        const width = 800; // Adjusted for side-by-side
+        const height = 500;
         const margin = { top: 40, right: 40, bottom: 60, left: 60 };
         let duration = 1000; // Animation duration per year in ms
         let isPlaying = false;
         let animationInterval = null;
 
-        const svg = d3.select("#chart-container")
+        // --- Scatter Chart SVG ---
+        const scatterSvg = d3.select("#scatter-container")
             .append("svg")
             .attr("viewBox", [0, 0, width, height])
-            .attr("width", width)
-            .attr("height", height);
+            .attr("width", "100%")
+            .attr("height", "100%");
+
+        // --- Line Chart SVG ---
+        const lineSvg = d3.select("#line-container")
+            .append("svg")
+            .attr("viewBox", [0, 0, width, height])
+            .attr("width", "100%")
+            .attr("height", "100%");
 
         // Color scale
         const color = d3.scaleOrdinal(d3.schemeTableau10);
@@ -183,7 +225,7 @@
                 const name = d["都道府県"];
                 const fruiting = d["結実"] === "" ? 0 : +d["結実"]; // X-axis
                 const captured = d["捕獲総数"] === "" ? 0 : +d["捕獲総数"]; // Y-axis
-                const incidents = d["件数"] === "" ? 0 : +d["件数"]; // Bubble Size
+                const incidents = d["件数"] === "" ? 0 : +d["件数"]; // Bubble Size & Line Chart Y-axis
 
                 if (year && targetPrefectures.includes(name)) {
                     formattedData.push({ year, name, fruiting, captured, incidents });
@@ -198,15 +240,18 @@
             slider.attr("max", years.length - 1);
             const yearDisplay = d3.select("#current-year-display");
 
-            // Group data by year
+            // Group data by year (for Scatter)
             const dataByYear = d3.group(formattedData, d => d.year);
 
-            // Scales
-            const x = d3.scaleLinear()
+            // Group data by prefecture (for Line Chart)
+            const dataByPref = d3.group(formattedData, d => d.name);
+
+            // --- SCATTER CHART SCALES ---
+            const xScatter = d3.scaleLinear()
                 .domain([0, 5]) // Fruiting index is 0-5
                 .range([margin.left, width - margin.right]);
 
-            const y = d3.scaleLinear()
+            const yScatter = d3.scaleLinear()
                 .domain([0, d3.max(formattedData, d => d.captured) * 1.1]) // Max captured + padding
                 .range([height - margin.bottom, margin.top]);
 
@@ -214,10 +259,19 @@
                 .domain([0, d3.max(formattedData, d => d.incidents)])
                 .range([4, 40]); // Min 4px, Max 40px
 
-            // Axes
-            const xAxis = g => g
+            // --- LINE CHART SCALES ---
+            const xLine = d3.scaleLinear()
+                .domain(d3.extent(years))
+                .range([margin.left, width - margin.right]);
+
+            const yLine = d3.scaleLinear()
+                .domain([0, d3.max(formattedData, d => d.incidents) * 1.1]) // Max incidents + padding
+                .range([height - margin.bottom, margin.top]);
+
+            // --- SCATTER AXES ---
+            const xAxisScatter = g => g
                 .attr("transform", `translate(0,${height - margin.bottom})`)
-                .call(d3.axisBottom(x).ticks(5))
+                .call(d3.axisBottom(xScatter).ticks(5))
                 .call(g => g.select(".domain").remove())
                 .call(g => g.append("text")
                     .attr("x", width - margin.right)
@@ -227,9 +281,9 @@
                     .attr("class", "axis-label")
                     .text("ブナ結実 (Fruiting Index) →"));
 
-            const yAxis = g => g
+            const yAxisScatter = g => g
                 .attr("transform", `translate(${margin.left},0)`)
-                .call(d3.axisLeft(y))
+                .call(d3.axisLeft(yScatter))
                 .call(g => g.select(".domain").remove())
                 .call(g => g.append("text")
                     .attr("x", 10)
@@ -239,21 +293,85 @@
                     .attr("class", "axis-label")
                     .text("↑ 捕獲総数 (Captured Bears)"));
 
-            // Append axes but keep them hidden initially
-            const xAxisG = svg.append("g").attr("class", "axis").call(xAxis).attr("opacity", 0);
-            const yAxisG = svg.append("g").attr("class", "axis").call(yAxis).attr("opacity", 0);
+            scatterSvg.append("g").attr("class", "axis").call(xAxisScatter);
+            scatterSvg.append("g").attr("class", "axis").call(yAxisScatter);
 
-            // Initial Elements
-            const yearLabel = svg.append("text")
+            // --- LINE CHART AXES ---
+            const xAxisLine = g => g
+                .attr("transform", `translate(0,${height - margin.bottom})`)
+                .call(d3.axisBottom(xLine).tickFormat(d3.format("d")))
+                .call(g => g.select(".domain").remove())
+                .call(g => g.append("text")
+                    .attr("x", width - margin.right)
+                    .attr("y", -10)
+                    .attr("fill", "currentColor")
+                    .attr("text-anchor", "end")
+                    .attr("class", "axis-label")
+                    .text("年度 (Year) →"));
+
+            const yAxisLine = g => g
+                .attr("transform", `translate(${margin.left},0)`)
+                .call(d3.axisLeft(yLine))
+                .call(g => g.select(".domain").remove())
+                .call(g => g.append("text")
+                    .attr("x", 10)
+                    .attr("y", margin.top)
+                    .attr("fill", "currentColor")
+                    .attr("text-anchor", "start")
+                    .attr("class", "axis-label")
+                    .text("↑ 被害件数 (Incidents)"));
+
+            lineSvg.append("g").attr("class", "axis").call(xAxisLine);
+            lineSvg.append("g").attr("class", "axis").call(yAxisLine);
+
+            // --- DRAW LINE CHART ---
+            const line = d3.line()
+                .x(d => xLine(d.year))
+                .y(d => yLine(d.incidents));
+
+            const linePaths = lineSvg.append("g")
+                .selectAll("path")
+                .data(targetPrefectures)
+                .join("path")
+                .attr("class", "line-path")
+                .attr("d", pref => line(dataByPref.get(pref).sort((a, b) => a.year - b.year)))
+                .attr("stroke", pref => color(pref))
+                .on("mouseover", function (event, pref) {
+                    d3.selectAll(".line-path").style("opacity", 0.2);
+                    d3.select(this).style("opacity", 1).style("stroke-width", "4px");
+
+                    // Highlight bubble too
+                    d3.selectAll(".bubble").style("opacity", 0.2);
+                    d3.selectAll(`.bubble-${pref}`).style("opacity", 1);
+
+                    tooltip.style("opacity", 1)
+                        .html(`<strong>${pref}</strong>`)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", function () {
+                    d3.selectAll(".line-path").style("opacity", 0.6).style("stroke-width", "2px");
+                    d3.selectAll(".bubble").style("opacity", 0.7);
+                    tooltip.style("opacity", 0);
+                });
+
+            // Cursor Line for Line Chart
+            const cursorLine = lineSvg.append("line")
+                .attr("class", "cursor-line")
+                .attr("y1", margin.top)
+                .attr("y2", height - margin.bottom)
+                .attr("opacity", 0);
+
+            // --- SCATTER ELEMENTS ---
+            const yearLabel = scatterSvg.append("text")
                 .attr("class", "year-label")
                 .attr("text-anchor", "end")
                 .attr("x", width - 40)
                 .attr("y", height - 40)
-                .text(years[0])
-                .attr("opacity", 0); // Hidden initially
+                .text(years[0]);
 
-            let bubbles = svg.append("g").selectAll("circle");
-            let labels = svg.append("g").selectAll("text");
+            let bubbles = scatterSvg.append("g").selectAll("circle");
+            let labels = scatterSvg.append("g").selectAll("text");
             const tooltip = d3.select("#tooltip");
 
             let yearIndex = 0;
@@ -268,29 +386,40 @@
                 // Update Year Label
                 yearLabel.text(year);
 
+                // Update Cursor Line
+                cursorLine
+                    .attr("x1", xLine(year))
+                    .attr("x2", xLine(year))
+                    .attr("opacity", 1);
+
                 // Bubbles
                 bubbles = bubbles.data(yearData, d => d.name)
                     .join(
                         enter => enter.append("circle")
-                            .attr("class", "bubble")
+                            .attr("class", d => `bubble bubble-${d.name}`)
                             .attr("fill", d => color(d.name))
-                            .attr("cx", d => x(d.fruiting))
-                            .attr("cy", d => y(d.captured))
+                            .attr("cx", d => xScatter(d.fruiting))
+                            .attr("cy", d => yScatter(d.captured))
                             .attr("r", d => radius(d.incidents))
-                            .attr("opacity", 0) // Start hidden for sequential intro
+                            .attr("opacity", 0)
                             .call(enter => enter.transition().duration(transitionDuration).attr("opacity", 0.7))
                             .on("mouseover", function (event, d) {
                                 tooltip.style("opacity", 1)
                                     .html(`<strong>${d.name}</strong><br>結実: ${d.fruiting}<br>捕獲: ${d.captured}<br>被害: ${d.incidents}`)
                                     .style("left", (event.pageX + 10) + "px")
                                     .style("top", (event.pageY - 28) + "px");
+
+                                // Highlight line
+                                d3.selectAll(".line-path").style("opacity", 0.2);
+                                d3.selectAll(".line-path").filter(p => p === d.name).style("opacity", 1).style("stroke-width", "4px");
                             })
                             .on("mouseout", function () {
                                 tooltip.style("opacity", 0);
+                                d3.selectAll(".line-path").style("opacity", 0.6).style("stroke-width", "2px");
                             }),
                         update => update.transition().duration(transitionDuration).ease(d3.easeLinear)
-                            .attr("cx", d => x(d.fruiting))
-                            .attr("cy", d => y(d.captured))
+                            .attr("cx", d => xScatter(d.fruiting))
+                            .attr("cy", d => yScatter(d.captured))
                             .attr("r", d => radius(d.incidents))
                             .attr("opacity", 0.7),
                         exit => exit.transition().duration(transitionDuration).attr("opacity", 0).remove()
@@ -302,13 +431,13 @@
                         enter => enter.append("text")
                             .attr("class", "bubble-label")
                             .text(d => d.name)
-                            .attr("x", d => x(d.fruiting))
-                            .attr("y", d => y(d.captured))
+                            .attr("x", d => xScatter(d.fruiting))
+                            .attr("y", d => yScatter(d.captured))
                             .attr("opacity", 0)
                             .call(enter => enter.transition().duration(transitionDuration).attr("opacity", 1)),
                         update => update.transition().duration(transitionDuration).ease(d3.easeLinear)
-                            .attr("x", d => x(d.fruiting))
-                            .attr("y", d => y(d.captured))
+                            .attr("x", d => xScatter(d.fruiting))
+                            .attr("y", d => yScatter(d.captured))
                             .attr("opacity", 1),
                         exit => exit.transition().duration(transitionDuration).attr("opacity", 0).remove()
                     );
@@ -349,40 +478,14 @@
                 }
             }
 
-            // Sequential Intro
-            function runIntroSequence() {
-                // Reset everything
-                yearIndex = 0;
-                xAxisG.attr("opacity", 0);
-                yAxisG.attr("opacity", 0);
-                yearLabel.attr("opacity", 0);
-                svg.selectAll(".bubble").remove();
-                svg.selectAll(".bubble-label").remove();
-
-                // 1. Show Y Axis
-                yAxisG.transition().duration(1000).attr("opacity", 1)
-                    .on("end", () => {
-                        // 2. Show X Axis
-                        xAxisG.transition().duration(1000).attr("opacity", 1)
-                            .on("end", () => {
-                                // 3. Show Bubbles (First Year)
-                                update(years[0], 1000);
-                                yearLabel.transition().duration(1000).attr("opacity", 0.5);
-
-                                // 4. Start Animation after a short delay
-                                setTimeout(() => {
-                                    startAnimationLoop();
-                                }, 1500);
-                            });
-                    });
-            }
-
             // Event Listeners
             d3.select("#play-pause-btn").on("click", togglePlay);
 
             d3.select("#replay-btn").on("click", () => {
                 pauseAnimation();
-                runIntroSequence();
+                yearIndex = 0;
+                update(years[0], 0);
+                startAnimationLoop();
             });
 
             d3.select("#year-slider").on("input", function () {
@@ -398,8 +501,13 @@
                 }
             });
 
-            // Start the sequence on load
-            runIntroSequence();
+            // Initial Render
+            update(years[0], 0);
+
+            // Start Animation after short delay
+            setTimeout(() => {
+                startAnimationLoop();
+            }, 1000);
 
         }).catch(err => {
             console.error("Error loading CSV:", err);
