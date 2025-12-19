@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>CYBER BEAR MAP // 熊被害状況マップ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="prefectures.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+JP:wght@300;500;700&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            color: #e0faff;
+            font-family: 'Noto Sans JP', sans-serif;
+            overflow: hidden;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+            z-index: 1;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            pointer-events: none;
+            /* Let clicks pass through to map where possible */
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 3rem;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            background: linear-gradient(90deg, #00f2ff, #ff0055);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 10px rgba(0, 242, 255, 0.5));
+        }
+
+        h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            margin: 5px 0 20px 0;
+            color: #ccc;
+            letter-spacing: 1px;
+        }
+
+        /* Controls */
+        #controls {
+            pointer-events: auto;
+            background: rgba(10, 10, 15, 0.85);
+            padding: 20px;
+            border: 1px solid #333;
+            border-left: 4px solid #00f2ff;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+            width: 300px;
+            border-radius: 0 20px 0 20px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            color: #888;
+            margin-bottom: 5px;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #ff0055;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px #ff0055;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #333;
+            border-radius: 2px;
+        }
+
+        #year-display {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 4rem;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.1);
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            z-index: 5;
+            pointer-events: none;
+            transition: color 0.3s;
+        }
+
+        #year-display.active {
+            color: rgba(0, 242, 255, 0.8);
+            text-shadow: 0 0 20px #00f2ff;
+        }
+
+        /* Legend */
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 0.8rem;
+        }
+
+        .color-box {
+            width: 12px;
+            height: 12px;
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+
+        /* Animation Toggle */
+        #play-btn {
+            background: transparent;
+            border: 1px solid #00f2ff;
+            color: #00f2ff;
+            padding: 8px 16px;
+            font-family: 'Orbitron', sans-serif;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            width: 100%;
+            letter-spacing: 1px;
+        }
+
+        #play-btn:hover {
+            background: #00f2ff;
+            color: #000;
+            box-shadow: 0 0 15px #00f2ff;
+        }
+
+        /* Scanline effect */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.1));
+            background-size: 100% 4px;
+            z-index: 999;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="scanlines"></div>
+
+    <div id="ui-layer">
+        <h1>BEAR TRACKER</h1>
+        <h2>JAPAN INCIDENT MONITOR</h2>
+
+        <div id="controls">
+            <div class="control-group">
+                <label>TIMELINE <span id="current-year-val"></span></label>
+                <input type="range" id="year-slider" min="2000" max="2024" step="1">
+            </div>
+            <div class="control-group">
+                <button id="play-btn">INITIALIZING...</button>
+            </div>
+            <div class="control-group">
+                <label>SEVERITY INDEX</label>
+                <div class="legend-item">
+                    <div class="color-box" style="background:#00f2ff; box-shadow:0 0 5px #00f2ff;"></div>Low Intensity
+                </div>
+                <div class="legend-item">
+                    <div class="color-box" style="background:#ff0055; box-shadow:0 0 5px #ff0055;"></div>High Intensity
+                </div>
+            </div>
+            <div style="font-size: 0.7em; color: #555; margin-top: 10px;">
+                DATA: ENVIRONMENT MINISTRY
+            </div>
+        </div>
+    </div>
+
+    <div id="year-display">LOADING</div>
+    <div id="map"></div>
+
+    <script>
+        // Configuration
+        const CSV_PATH = '../data/bear_incident_count.csv';
+        const COLOR_LOW = [0, 242, 255]; // Cyan
+        const COLOR_HIGH = [255, 0, 85];  // Pink/Red
+
+        let map;
+        let incidentData = {}; // { year: { pref: { count, injured, death } } }
+        let years = [];
+        let isPlaying = false;
+        let animationInterval;
+
+        // Initialize Map
+        function initMap() {
+            map = new maplibregl.Map({
+                container: 'map',
+                style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                center: [138, 38], // Japan center
+                zoom: 5,
+                pitch: 45, // 3D effect
+                bearing: -10,
+                antialias: true
+            });
+
+            map.on('load', () => {
+                // Add custom fog for atmosphere
+                /*
+                map.setFog({
+                    'range': [0.5, 10],
+                    'color': '#0a0a0f',
+                    'horizon-blend': 0.1
+                });
+                */
+
+                loadData();
+            });
+        }
+
+        // Load and Parse Data
+        function loadData() {
+            Papa.parse(CSV_PATH, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    processData(results.data);
+                    setupVisualization();
+                }
+            });
+        }
+
+        function processData(data) {
+            // Data format: prefecture,year,count,injured,death
+            let minYear = 9999;
+            let maxYear = 0;
+
+            data.forEach(row => {
+                const year = parseInt(row.year);
+                const pref = row.prefecture;
+                if (!year || !pref) return;
+
+                if (year < minYear) minYear = year;
+                if (year > maxYear) maxYear = year;
+
+                if (!incidentData[year]) incidentData[year] = {};
+                incidentData[year][pref] = {
+                    count: parseInt(row.count) || 0,
+                    injured: parseInt(row.injured) || 0,
+                    death: parseInt(row.death) || 0
+                };
+            });
+
+            years = Object.keys(incidentData).map(Number).sort((a, b) => a - b);
+
+            const slider = document.getElementById('year-slider');
+            slider.min = minYear;
+            slider.max = maxYear;
+            slider.value = minYear;
+            slider.addEventListener('input', (e) => updateMap(parseInt(e.target.value)));
+
+            document.getElementById('play-btn').textContent = 'START STREAM';
+            document.getElementById('play-btn').addEventListener('click', toggleAnimation);
+
+            updateMap(minYear);
+        }
+
+        function setupVisualization() {
+            // Create a Neo-Tokyo style grid of columns
+            // We will stick to GeoJSON points for now, but style them as 3D circles/columns
+
+            // This source will hold the CURRENT year's data
+            map.addSource('incidents', {
+                type: 'geojson',
+                data: getGeoJSON(parseInt(document.getElementById('year-slider').value))
+            });
+
+            // Add 3D Extruded Circles
+            map.addLayer({
+                'id': 'incidents-3d',
+                'type': 'fill-extrusion',
+                'source': 'incidents',
+                'paint': {
+                    'fill-extrusion-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'count'],
+                        0, '#00f2ff',
+                        20, '#ff0055'
+                    ],
+                    'fill-extrusion-height': [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'count'],
+                        0, 0,
+                        50, 200000 // Tall columns
+                    ],
+                    'fill-extrusion-base': 0,
+                    'fill-extrusion-opacity': 0.8
+                }
+            });
+
+            // Add a glow effect at the base (using circles)
+            map.addLayer({
+                'id': 'incident-glow',
+                'type': 'circle',
+                'source': 'incidents',
+                'paint': {
+                    'circle-radius': [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'count'],
+                        0, 5,
+                        50, 30
+                    ],
+                    'circle-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'count'],
+                        0, '#00f2ff',
+                        20, '#ff0055'
+                    ],
+                    'circle-opacity': 0.4,
+                    'circle-blur': 0.8
+                }
+            });
+        }
+
+        function getGeoJSON(year) {
+            const features = [];
+            const yearData = incidentData[year] || {};
+
+            for (const [pref, data] of Object.entries(yearData)) {
+                const coords = prefectureCoordinates[pref];
+                if (coords && data.count > 0) {
+                    // Create a small polygon (circle) for the extrusion
+                    // Actually maplibre fill-extrusion needs polygons, not points.
+                    // Simple trick: Create a tiny circle polygon around the point.
+                    const center = coords;
+                    const radius = 0.15; // approximate size
+                    const polygon = createCirclePolygon(center, radius);
+
+                    features.push({
+                        type: 'Feature',
+                        properties: {
+                            pref: pref,
+                            count: data.count,
+                            injured: data.injured,
+                            death: data.death
+                        },
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [polygon]
+                        }
+                    });
+                }
+            }
+            return {
+                type: 'FeatureCollection',
+                features: features
+            };
+        }
+
+        // Helper to create a circle polygon (hexagon/octagon approximation)
+        function createCirclePolygon(center, radius) {
+            const sides = 8;
+            const coords = [];
+            for (let i = 0; i < sides; i++) {
+                const angle = (i * 360 / sides) * Math.PI / 180;
+                const dx = radius * Math.cos(angle);
+                const dy = radius * Math.sin(angle);
+                coords.push([center[0] + dx, center[1] + dy * 0.8]); // Flatten slightly for latitude
+            }
+            coords.push(coords[0]); // Close ring
+            return coords;
+        }
+
+        function updateMap(year) {
+            document.getElementById('year-display').textContent = year;
+            document.getElementById('year-display').classList.add('active');
+            document.getElementById('current-year-val').textContent = `// ${year}`;
+
+            if (map && map.getSource('incidents')) {
+                map.getSource('incidents').setData(getGeoJSON(year));
+            }
+        }
+
+        function toggleAnimation() {
+            const btn = document.getElementById('play-btn');
+            if (isPlaying) {
+                clearInterval(animationInterval);
+                isPlaying = false;
+                btn.textContent = 'RESUME STREAM';
+            } else {
+                isPlaying = true;
+                btn.textContent = 'STOP STREAM';
+                const slider = document.getElementById('year-slider');
+                let currentYear = parseInt(slider.value);
+                const maxYear = parseInt(slider.max);
+
+                animationInterval = setInterval(() => {
+                    if (currentYear >= maxYear) {
+                        currentYear = parseInt(slider.min);
+                    } else {
+                        currentYear++;
+                    }
+                    slider.value = currentYear;
+                    updateMap(currentYear);
+                }, 800); // Speed
+            }
+        }
+
+        initMap();
+
+    </script>
+</body>
+
+</html>
