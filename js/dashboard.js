@@ -1,6 +1,91 @@
 document.addEventListener('DOMContentLoaded', () => {
     const navItems = document.querySelectorAll('.nav-item');
     const contentFrame = document.getElementById('content-frame');
+    const sidebar = document.querySelector('.sidebar');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const notesTextarea = document.getElementById('site-notes');
+    const saveBtn = document.getElementById('save-notes');
+    const deleteBtn = document.getElementById('delete-notes');
+
+    // Sidebar Toggle
+    if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sidebar.classList.toggle('collapsed');
+        });
+    }
+
+    // Notes Editor Logic
+    // Notes Editor Logic
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const noteAreas = document.querySelectorAll('.note-area');
+
+    // 1. Tab Switching Functionality
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove active class from all
+            tabBtns.forEach(b => b.classList.remove('active'));
+            noteAreas.forEach(area => area.classList.remove('active'));
+
+            // Add active class to clicked button
+            btn.classList.add('active');
+
+            // Show corresponding textarea
+            const targetId = btn.getAttribute('data-target');
+            const targetArea = document.getElementById(targetId);
+            if (targetArea) {
+                targetArea.classList.add('active');
+            }
+        });
+    });
+
+    // 2. Load Saved Notes
+    const noteIds = ['note-map', 'note-analysis', 'note-scatter'];
+
+    noteIds.forEach(id => {
+        const savedContent = localStorage.getItem(`antigravity_${id}`);
+        const area = document.getElementById(id);
+        if (area && savedContent) {
+            area.value = savedContent;
+        }
+    });
+
+    // 3. Save Functionality
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            noteIds.forEach(id => {
+                const area = document.getElementById(id);
+                if (area) {
+                    localStorage.setItem(`antigravity_${id}`, area.value);
+                }
+            });
+
+            // Visual feedback
+            const originalText = saveBtn.innerText;
+            saveBtn.innerText = 'Saved!';
+            saveBtn.classList.add('active'); // Optional: Add a class for styling if needed
+
+            setTimeout(() => {
+                saveBtn.innerText = originalText;
+                saveBtn.classList.remove('active');
+            }, 1500);
+        });
+    }
+
+    // 4. Delete Functionality
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to delete ALL notes?')) {
+                noteIds.forEach(id => {
+                    const area = document.getElementById(id);
+                    if (area) {
+                        area.value = '';
+                    }
+                    localStorage.removeItem(`antigravity_${id}`);
+                });
+            }
+        });
+    }
 
     // Default Page
     // Check if we can restore state or default to first item

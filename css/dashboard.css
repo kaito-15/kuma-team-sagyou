@@ -4,10 +4,12 @@
     --sidebar-width: 260px;
     --text-primary: #e0e0e0;
     --text-secondary: #a0a0a0;
-    --accent-color: #38bdf8; /* Sky Blue */
+    --accent-color: #38bdf8;
+    /* Sky Blue */
     --accent-hover: #0ea5e9;
     --border-color: rgba(255, 255, 255, 0.1);
     --glass-effect: blur(10px);
+    --sidebar-collapsed-width: 80px;
 }
 
 * {
@@ -35,6 +37,9 @@ body {
     padding: 20px;
     backdrop-filter: var(--glass-effect);
     z-index: 100;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 .logo-container {
@@ -42,6 +47,33 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
+    height: 80px;
+}
+
+.sidebar-toggle-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.sidebar-toggle-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.logo-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: opacity 0.2s ease;
 }
 
 .logo-icon {
@@ -91,6 +123,34 @@ body {
     font-size: 1.1rem;
     width: 20px;
     text-align: center;
+    flex-shrink: 0;
+}
+
+/* Collapsed Sidebar Styles */
+.sidebar.collapsed {
+    width: var(--sidebar-collapsed-width);
+}
+
+.sidebar.collapsed .logo-content,
+.sidebar.collapsed .nav-item span:not(.nav-icon),
+.sidebar.collapsed .sidebar-editor,
+.sidebar.collapsed .sidebar-footer {
+    display: none;
+}
+
+.sidebar.collapsed .logo-container {
+    justify-content: center;
+    padding-left: 0;
+}
+
+.sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding: 12px;
+}
+
+.sidebar.collapsed .nav-icon {
+    margin: 0;
+    font-size: 1.3rem;
 }
 
 /* Main Content */
@@ -105,6 +165,112 @@ iframe {
     height: 100%;
     border: none;
     display: block;
+}
+
+/* Sidebar Editor */
+.sidebar-editor {
+    padding: 0 10px 20px 10px;
+    border-top: 1px solid var(--border-color);
+    margin-top: auto;
+}
+
+.editor-title {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin: 15px 0 10px 0;
+    font-weight: 600;
+}
+
+#site-notes {
+    display: none;
+    /* Legacy */
+}
+
+.editor-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+    color: var(--accent-color);
+    background: rgba(56, 189, 248, 0.1);
+}
+
+.note-area {
+    width: 100%;
+    height: 100px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    padding: 8px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    resize: none;
+    margin-bottom: 10px;
+    display: none;
+}
+
+.note-area.active {
+    display: block;
+}
+
+.note-area:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.editor-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.editor-btn {
+    flex: 1;
+    padding: 6px;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.editor-btn.save {
+    background: var(--accent-color);
+    color: #000;
+}
+
+.editor-btn.save:hover {
+    background: var(--accent-hover);
+}
+
+.editor-btn.delete {
+    background: rgba(255, 59, 48, 0.2);
+    color: #ff3b30;
+}
+
+.editor-btn.delete:hover {
+    background: rgba(255, 59, 48, 0.3);
 }
 
 /* Footer / User User Profile in Sidebar */

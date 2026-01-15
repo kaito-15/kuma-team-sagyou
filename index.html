@@ -20,8 +20,11 @@
     <!-- Sidebar Navigation -->
     <nav class="sidebar">
         <div class="logo-container">
-            <span class="logo-icon">🐻</span>
-            <span class="logo-text">ANTIGRAVITY</span>
+            <button id="sidebar-toggle" class="sidebar-toggle-btn">☰</button>
+            <div class="logo-content">
+                <span class="logo-icon">🐻</span>
+                <span class="logo-text">ANTIGRAVITY</span>
+            </div>
         </div>
 
         <div class="nav-links">
@@ -37,14 +40,27 @@
                 <span class="nav-icon">📈</span>
                 <span>Scatter Motion</span>
             </a>
-            <a href="html/voice_changer.html" class="nav-item">
-                <span class="nav-icon">🎙️</span>
-                <span>Voice Tools</span>
-            </a>
-            <a href="html/network_graph.html" class="nav-item">
-                <span class="nav-icon">🕸️</span>
-                <span>Network Graph</span>
-            </a>
+
+        </div>
+
+        <!-- Site Notes Editor -->
+        <div class="sidebar-editor">
+            <h3 class="editor-title">Description</h3>
+
+            <div class="editor-tabs">
+                <button class="tab-btn active" data-target="note-map">Map</button>
+                <button class="tab-btn" data-target="note-analysis">Analysis</button>
+                <button class="tab-btn" data-target="note-scatter">Scatter</button>
+            </div>
+
+            <textarea id="note-map" class="note-area active" placeholder="Map notes..."></textarea>
+            <textarea id="note-analysis" class="note-area" placeholder="Analysis notes..."></textarea>
+            <textarea id="note-scatter" class="note-area" placeholder="Scatter notes..."></textarea>
+
+            <div class="editor-controls">
+                <button id="save-notes" class="editor-btn save">Save All</button>
+                <button id="delete-notes" class="editor-btn delete">Clear All</button>
+            </div>
         </div>
 
         <div class="sidebar-footer">
