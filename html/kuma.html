@@ -1233,7 +1233,10 @@
                 getElevation: d => d.count,
                 autoHighlight: true,
                 highlightColor: [255, 255, 255, 100],
-                tooltip: true,
+                onClick: () => {
+                    // クリック時に何もしない（選択状態を保持しない）
+                    return true;
+                },
                 transitions: {
                     getElevation: {
                         duration: 600,
