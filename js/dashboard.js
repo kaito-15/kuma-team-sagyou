@@ -116,4 +116,70 @@ document.addEventListener('DOMContentLoaded', () => {
             contentFrame.src = url;
         }
     }
+    // Info Overlay Logic
+    const infoOverlay = document.getElementById('info-overlay');
+    const showInfoBtn = document.getElementById('show-info');
+    const closeInfoBtn = document.getElementById('close-info');
+    const saveInfoBtn = document.getElementById('save-info-changes');
+
+    // Editable IDs
+    const editableIds = [
+        'info-title-map', 'info-desc-map',
+        'info-title-analysis', 'info-desc-analysis',
+        'info-title-scatter', 'info-desc-scatter'
+    ];
+
+    // Load saved info content
+    editableIds.forEach(id => {
+        const savedContent = localStorage.getItem(`antigravity_${id}`);
+        const element = document.getElementById(id);
+        if (element && savedContent) {
+            element.innerText = savedContent;
+        }
+    });
+
+    if (showInfoBtn && infoOverlay) {
+        showInfoBtn.addEventListener('click', () => {
+            infoOverlay.classList.add('active');
+        });
+    }
+
+    if (closeInfoBtn && infoOverlay) {
+        closeInfoBtn.addEventListener('click', () => {
+            infoOverlay.classList.remove('active');
+        });
+    }
+
+    // Save Info Changes
+    if (saveInfoBtn) {
+        saveInfoBtn.addEventListener('click', () => {
+            editableIds.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    localStorage.setItem(`antigravity_${id}`, element.innerText);
+                }
+            });
+
+            // Visual feedback
+            const originalText = saveInfoBtn.innerText;
+            saveInfoBtn.innerText = 'Saved!';
+            saveInfoBtn.style.background = 'rgba(76, 175, 80, 0.3)';
+            saveInfoBtn.style.borderColor = 'rgba(76, 175, 80, 0.5)';
+
+            setTimeout(() => {
+                saveInfoBtn.innerText = originalText;
+                saveInfoBtn.style.background = 'rgba(255, 255, 255, 0.1)';
+                saveInfoBtn.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+            }, 1000);
+        });
+    }
+
+    // Close on click outside cards
+    if (infoOverlay) {
+        infoOverlay.addEventListener('click', (e) => {
+            if (e.target === infoOverlay) {
+                infoOverlay.classList.remove('active');
+            }
+        });
+    }
 });
