@@ -93,10 +93,44 @@
         <button id="save-info-changes" class="save-info-btn">Save Changes</button>
     </div>
 
+    <!-- References Modal -->
+    <div id="references-overlay" class="references-overlay">
+        <button id="close-references" class="close-references-btn">&times;</button>
+        <div class="references-content">
+            <h2>参考サイト</h2>
+            <div class="references-list">
+                <a href="https://www.ffpri.go.jp/pubs/seikasenshu/2003/documents/p16-17.pdf" target="_blank"
+                    class="reference-item">
+                    <span class="reference-icon">📄</span>
+                    <div class="reference-info">
+                        <div class="reference-title">森林総合研究所 - ブナ科樹木の豊凶</div>
+                        <div class="reference-url">www.ffpri.go.jp</div>
+                    </div>
+                </a>
+                <a href="https://www.youtube.com/watch?v=mCnTGzhQnpM" target="_blank" class="reference-item">
+                    <span class="reference-icon">🎥</span>
+                    <div class="reference-info">
+                        <div class="reference-title">YouTube - 参考動画</div>
+                        <div class="reference-url">www.youtube.com</div>
+                    </div>
+                </a>
+                <a href="https://www.pref.saitama.lg.jp/a0508/news/page/news20251006.html" target="_blank"
+                    class="reference-item">
+                    <span class="reference-icon">🌐</span>
+                    <div class="reference-info">
+                        <div class="reference-title">埼玉県 - クマ関連ニュース</div>
+                        <div class="reference-url">www.pref.saitama.lg.jp</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Content Area -->
     <main class="main-content">
         <iframe id="content-frame" src="html/kuma.html" title="Dashboard Content"></iframe>
         <button id="show-info" class="floating-info-btn">ℹ️</button>
+        <button id="show-references" class="floating-references-btn">📚</button>
     </main>
 
     <!-- Scripts -->

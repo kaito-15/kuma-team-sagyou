@@ -182,4 +182,30 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // References Overlay Logic
+    const referencesOverlay = document.getElementById('references-overlay');
+    const showReferencesBtn = document.getElementById('show-references');
+    const closeReferencesBtn = document.getElementById('close-references');
+
+    if (showReferencesBtn && referencesOverlay) {
+        showReferencesBtn.addEventListener('click', () => {
+            referencesOverlay.classList.add('active');
+        });
+    }
+
+    if (closeReferencesBtn && referencesOverlay) {
+        closeReferencesBtn.addEventListener('click', () => {
+            referencesOverlay.classList.remove('active');
+        });
+    }
+
+    // Close on click outside content
+    if (referencesOverlay) {
+        referencesOverlay.addEventListener('click', (e) => {
+            if (e.target === referencesOverlay) {
+                referencesOverlay.classList.remove('active');
+            }
+        });
+    }
 });
